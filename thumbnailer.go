@@ -9,6 +9,7 @@ import (
 	//	"launchpad.net/goamz/aws"
 	//	"launchpad.net/goamz/s3"
 	//	"log"
+	"io"
 	"net/http"
 	"os"
 )
@@ -16,7 +17,8 @@ import (
 func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/", RootHandler)
-	r.HandleFunc("/thumbnail", ThumbnailHandler)
+	r.HandleFunc("/thumbnail", RootHandler).Methods("GET")
+	r.HandleFunc("/thumbnail/{size}", ThumbnailHandler).Methods("POST")
 	http.Handle("/", r)
 
 	err := http.ListenAndServe(":"+os.Getenv("PORT"), nil)
@@ -32,14 +34,39 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 
 // TODO: Make this less shit.
 func ThumbnailHandler(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case "GET":
-		fmt.Fprint(w, "I only handle POSTs")
-	case "POST":
-		if size := r.FormValue("size"); size == "" {
-			fmt.Fprint(w, "You've forgotten something")
-		} else {
-			fmt.Fprint(w, "Sizing to "+size)
-		}
+
+	size := r.FormValue("size")
+	if size == "" {
+		fmt.Fprint(w, "Please specify a thumbnail size eg. 100x100")
+		return
 	}
+
+	fmt.Fprint(w, "Sizing to "+size)
+
+	// the FormFile function takes in the POST input id file
+	file, header, err := r.FormFile("file")
+
+	if err != nil {
+		fmt.Fprintln(w, err)
+		return
+	}
+
+	defer file.Close()
+
+	out, err := os.Create("/tmp/uploadedfile")
+	if err != nil {
+		fmt.Fprintf(w, "Unable to create the file for writing. Check your write access privilege")
+		return
+	}
+
+	defer out.Close()
+
+	// write the content from POST to the file
+	_, err = io.Copy(out, file)
+	if err != nil {
+		fmt.Fprintln(w, err)
+	}
+
+	fmt.Fprintf(w, "File uploaded successfully : ")
+	fmt.Fprintf(w, header.Filename)
 }

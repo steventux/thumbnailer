@@ -3,16 +3,36 @@ package thumbnailer_test
 import (
 	. "thumbnailer"
 
+	"bytes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"strings"
+	"os"
 )
 
 var _ = Describe("Thumbnailer", func() {
 
 	var res *httptest.ResponseRecorder
+
+	var testFileContents = func() (os.FileInfo, []byte, error) {
+		file, err := os.Open("./thumbnailer.go")
+		if err != nil {
+			return nil, nil, err
+		}
+		fileContents, err := ioutil.ReadAll(file)
+		if err != nil {
+			return nil, nil, err
+		}
+		fi, err := file.Stat()
+		if err != nil {
+			return nil, nil, err
+		}
+		file.Close()
+		return fi, fileContents, nil
+	}
 
 	BeforeEach(func() {
 		res = httptest.NewRecorder()
@@ -28,25 +48,34 @@ var _ = Describe("Thumbnailer", func() {
 	})
 
 	Describe("ThumbnailHandler", func() {
-		It("should complain about GET requests", func() {
-			req, _ := http.NewRequest("GET", "http://localhost/thumbnail/100x100", nil)
-			ThumbnailHandler(res, req)
-
-			Expect(res.Body.String()).To(Equal("I only handle POSTs"))
-		})
-		It("should complain if required params are not passed", func() {
+		It("should complain if a size is not supplied", func() {
 			req, _ := http.NewRequest("POST", "http://localhost/thumbnail", nil)
 			ThumbnailHandler(res, req)
 
-			Expect(res.Body.String()).To(Equal("You've forgotten something"))
+			Expect(res.Body.String()).To(Equal("Please specify a thumbnail size eg. 100x100"))
 		})
-		It("should be happy if required params are passed", func() {
-			req, _ := http.NewRequest("POST", "http://localhost/thumbnail", strings.NewReader("size=100x100"))
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
+		Describe("Given sane POST data", func() {
+			BeforeEach(func() {
+				body := new(bytes.Buffer)
+				writer := multipart.NewWriter(body)
+				writer.WriteField("size", "100x100")
+				fi, fileContents, _ := testFileContents()
+				part, _ := writer.CreateFormFile("file", fi.Name())
+				part.Write(fileContents)
+				writer.Close()
 
-			ThumbnailHandler(res, req)
+				req, _ := http.NewRequest("POST", "http://localhost/thumbnail", body)
+				req.Header.Add("Content-Type", writer.FormDataContentType())
 
-			Expect(res.Body.String()).To(Equal("Sizing to 100x100"))
+				ThumbnailHandler(res, req)
+			})
+
+			It("should be happy if size is given", func() {
+				Expect(res.Body.String()).To(MatchRegexp("Sizing to 100x100"))
+			})
+			It("should be happy if a file is supplied", func() {
+				Expect(res.Body.String()).To(MatchRegexp("File uploaded successfully"))
+			})
 		})
 	})
 })
