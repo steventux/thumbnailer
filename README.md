@@ -1,8 +1,10 @@
 # Thumbnailer
 
+Thumbnailing service with cloud storage.
+
 ## TODO
 
-- [ ] Implement ThumnailHandler with multipart POST
+- [x] Implement ThumnailHandler with multipart POST
 - [ ] Add storage interfaces
 - [ ] Dependency management
 
