@@ -18,7 +18,7 @@ var _ = Describe("Thumbnailer", func() {
 	var res *httptest.ResponseRecorder
 
 	var testFileContents = func() (os.FileInfo, []byte, error) {
-		file, err := os.Open("./thumbnailer.go")
+		file, err := os.Open("./gopher.jpg")
 		if err != nil {
 			return nil, nil, err
 		}
@@ -75,6 +75,9 @@ var _ = Describe("Thumbnailer", func() {
 			})
 			It("should be happy if a file is supplied", func() {
 				Expect(res.Body.String()).To(MatchRegexp("File uploaded successfully"))
+			})
+			It("should create a thumbnail", func() {
+				Expect(res.Body.String()).To(MatchRegexp("Thumbnail generated"))
 			})
 		})
 	})
